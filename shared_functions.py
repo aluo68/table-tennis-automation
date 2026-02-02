@@ -1,28 +1,36 @@
-from warnings import filterwarnings
-filterwarnings("ignore")
+"""shared_functions.py - shared functions utilized between the sheets and drive functions
+Author: Johnathan Lian
 
-import os, sys
-from apiclient import errors
-from oauth2client.file import Storage
-from oauth2client import client
-from oauth2client import tools
+- Revision 02/01/2026 (Andrew): Removed deprecated oauth2client and replaced with google_auth
+"""
+import os
+import sys
 from re import split
+from warnings import filterwarnings
+from apiclient import errors
+import google_auth_oauthlib
+filterwarnings("ignore")
 
 try:
     import argparse
-    flags = argparse.ArgumentParser(parents=[tools.argparser]).parse_args()
+    parser = argparse.ArgumentParser(description="Google API Script")
 except ImportError:
-    flags = None
+    FLAGS = None
 
 class HiddenPrints:
-    def __enter__(self):
+    """Hide all stdout"""
+    def __init__(self):
         self._original_stdout = sys.stdout
-        sys.stdout = open(os.devnull, 'w')
-
+    def __enter__(self):
+        sys.stdout = open(os.devnull, 'w', encoding='utf-8')
     def __exit__(self, exc_type, exc_val, exc_tb):
         sys.stdout = self._original_stdout
 
 def check_permissions(service, folder_id, cache_file_name):
+    """
+    Ensure script has access to specific Google Drive folder 
+    before attempting major operations
+    """
     try:
         with HiddenPrints():
             service.permissions().list(fileId=folder_id).execute()
@@ -31,12 +39,25 @@ def check_permissions(service, folder_id, cache_file_name):
         remove_file_from_cache(cache_file_name)
 
 def remove_file_from_cache(cache_file_name):
+    """ 
+    Removing credentials saved on device
+    Args:
+        cache_file_name (str): file name of the cache file
+    """
     credential_path = get_credential_path(cache_file_name)
-    print('Removing credentials from {}'.format(credential_path))
+    print(f'Removing credentials from {credential_path}')
     os.remove(credential_path)
     sys.exit()
 
 def get_credential_path(cache_file_name):
+    """
+    Getting the path to the credential file
+    Args:
+        cache_file_name (_type_): file name of the cache file
+
+    Returns:
+        string :  the credential path
+    """
     home_dir = os.path.expanduser('~')
     credential_dir = os.path.join(home_dir, '.credentials')
     if not os.path.exists(credential_dir):
@@ -48,7 +69,7 @@ def get_credentials(cache_file_name, client_secret_file, scopes, application_nam
     """Gets valid user credentials from storage.
 
     If nothing has been stored, or if the stored credentials are invalid,
-    the OAuth2 flow is completed to obtain the new credentials.
+    the googleauth flow is completed to obtain the new credentials.
 
     Returns:
         Credentials, the obtained credential.
@@ -60,8 +81,8 @@ def get_credentials(cache_file_name, client_secret_file, scopes, application_nam
         with HiddenPrints():
             flow = client.flow_from_clientsecrets(client_secret_file, scopes)
             flow.user_agent = application_name
-            if flags:
-                credentials = tools.run_flow(flow, store, flags)
+            if FLAGS:
+                credentials = google_auth_oauthlib.InstalledAppFlow(flow, store, FLAGS)
             else: # Needed only for compatibility with Python 2.6
                 credentials = tools.run(flow, store)
         print('Storing credentials to {}'.format(credential_path))
